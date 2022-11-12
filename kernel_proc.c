@@ -1,4 +1,5 @@
 
+
 #include <assert.h>
 #include "kernel_cc.h"
 #include "kernel_proc.h"
@@ -124,7 +125,6 @@ void start_main_thread()
   Exit(exitval);
 }
 
-
 /*
 	System call to create a new process.
  */
@@ -179,6 +179,22 @@ Pid_t sys_Exec(Task call, int argl, void* args)
    */
   if(call != NULL) {
     newproc->main_thread = spawn_thread(newproc, start_main_thread);
+
+    /*Additions*/
+    PTCB* new_ptcb= (PTCB*) xmalloc(sizeof(PTCB));
+    newproc->main_thread->ptcb = new_ptcb;
+    new_ptcb->tcb = newproc->main_thread;
+    new_ptcb->task = newproc->main_task;
+    new_ptcb->argl = newproc->argl;
+    new_ptcb->args = newproc->args;
+    new_ptcb->exited = 0;
+    new_ptcb->detached = 0;
+    new_ptcb->exit_cv = COND_INIT;
+    new_ptcb->refcount = 1;
+    rlnode_init(&new_ptcb->ptcb_list_node, new_ptcb);
+    rlist_push_back(&newproc->ptcb_list, &new_ptcb->ptcb_list_node);
+    newproc->thread_count++;
+
     wakeup(newproc->main_thread);
   }
 
