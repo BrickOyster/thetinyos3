@@ -6,14 +6,14 @@
 PTCB* acquire_PTCB(TCB* tcb)
 {
   PTCB* ptcb= (PTCB*) xmalloc(sizeof(PTCB));
-  rlnode_init(&ptcb->ptcb_list_node, ptcb);
-  rlist_push_back(&CURPROC->ptcb_list, &ptcb->ptcb_list_node);
   ptcb->tcb = tcb;
 
   ptcb->exited = 0;
   ptcb->detached = 0;
   ptcb->exit_cv = COND_INIT;
-  ptcb->refcount = 1;//den exoume idea ti einai eiyo
+  ptcb->refcount = 1;//start from 1
+  rlnode_init(&ptcb->ptcb_list_node, ptcb);
+  rlist_push_back(&CURPROC->ptcb_list, &ptcb->ptcb_list_node);
   return ptcb;
 
 }
@@ -22,7 +22,7 @@ void start_thread()
 {
   int exitval;
 
-  TCB *cur_tcb = cur_thread();
+  TCB* cur_tcb = cur_thread();
 
   Task call = cur_tcb->ptcb->task;
   int argl = cur_tcb->ptcb->argl;
@@ -48,7 +48,7 @@ Tid_t sys_CreateThread(Task task, int argl, void* args)
 
   wakeup(curr_tcb);
 	
-  return (Tid_t) curr_tcb;
+  return (Tid_t) new_ptcb;
 }
 
 /**
