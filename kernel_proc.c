@@ -1,5 +1,4 @@
 
-
 #include <assert.h>
 #include "kernel_cc.h"
 #include "kernel_proc.h"
@@ -124,6 +123,7 @@ void start_main_thread()
   exitval = call(argl,args);
   Exit(exitval);
 }
+
 
 /*
 	System call to create a new process.
