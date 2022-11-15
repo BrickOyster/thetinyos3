@@ -71,8 +71,21 @@ int sys_ThreadJoin(Tid_t tid, int* exitval)
   @brief Detach the given thread.
   */
 int sys_ThreadDetach(Tid_t tid)
-{
-	return -1;
+{ 
+  PTCB* ptcb = (PTCB*) tid;
+  
+  if(ptcb == NULL)
+    return -1;
+  
+  if(rlist_find(&CURPROC->ptcb_list,ptcb,NULL) == NULL)
+    return -1;
+  
+  ptcb->detached = 1;
+  ptcb->refcount = 0;
+  
+  kernel_broadcast(&ptcb->exit_cv);
+  
+  return 0;
 }
 
 /**
