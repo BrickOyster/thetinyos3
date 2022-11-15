@@ -59,7 +59,9 @@ typedef struct process_control_block {
                              @c WaitChild() */
 
   FCB* FIDT[MAX_FILEID];  /**< @brief The fileid table of the process */
-
+ 
+  rlnode ptcb_list;       /***< @brief List of virtual threads */
+  int thread_count;       /***< @brief Number of current threads in PTCB list */
 } PCB;
 
 
@@ -98,3 +100,4 @@ Pid_t get_pid(PCB* pcb);
 /** @} */
 
 #endif
+
