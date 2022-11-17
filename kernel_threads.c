@@ -2,6 +2,8 @@
 #include "tinyos.h"
 #include "kernel_sched.h"
 #include "kernel_proc.h"
+#include "kernel_cc.h"
+#include "kernel_streams.h"
 
 PTCB* acquire_PTCB(TCB* tcb)
 {
@@ -64,7 +66,53 @@ Tid_t sys_ThreadSelf()
   */
 int sys_ThreadJoin(Tid_t tid, int* exitval)
 {
-	return -1;
+  //tid 0 or self
+	if(tid<=0 || tid==sys_ThreadSelf())
+    return -1;
+  
+  //get node with ptcb to join else null
+  rlnode* temp = rlist_find(&CURPROC->ptcb_list, (PTCB*)tid, NULL);
+
+  if(temp == NULL)
+    return -1;
+
+  //get ptcb out of node
+  PTCB* threadref = temp->ptcb;
+
+  //if detached not permited
+  if(threadref->detached==1)
+    return -1;
+
+  //thread no longer waits in queue but for joined thread
+  rlist_remove(&cur_thread()->sched_node);
+
+  //update refrensce counter
+  threadref->refcount++;
+
+  //while not exited
+  while(threadref->exited==0){
+    kernel_wait(&threadref->exit_cv, SCHED_USER);
+    
+    //if thread we joined becomes detouched
+    if(threadref->detached==1) // could the following code be in the while loop
+      return -1;
+  }
+
+  //if it exits
+  if(exitval!=NULL)
+    *exitval = threadref->exitval;
+  
+  //update refrence counter
+  threadref->refcount--;
+
+  //if refcount 0 free thread
+  if(threadref->refcount==0){
+    rlist_remove(&threadref->ptcb_list_node);    // remove the ptcb from the owner process's thread list
+    // do not decrease thread count as it only counts "active" threads (and if the thead_to_join's thread has already exited, we may end up with negative thread_count and undefined behavior)
+    free(threadref);
+  }
+
+  return 0;
 }
 
 /**
