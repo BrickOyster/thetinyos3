@@ -113,8 +113,8 @@ void release_PCB(PCB* pcb)
  */
 
 /*
-	This function is provided as an argument to spawn,
-	to execute the main thread of a process.
+  This function is provided as an argument to spawn,
+  to execute the main thread of a process.
 */
 void start_main_thread()
 {
@@ -130,7 +130,7 @@ void start_main_thread()
 
 
 /*
-	System call to create a new process.
+  System call to create a new process.
  */
 Pid_t sys_Exec(Task call, int argl, void* args)
 {
@@ -194,7 +194,7 @@ Pid_t sys_Exec(Task call, int argl, void* args)
     new_ptcb->detached = 0;
     new_ptcb->exited = 0;
     new_ptcb->exit_cv = COND_INIT;
-    new_ptcb->refcount = 0;
+    new_ptcb->refcount = 1;
     rlnode_init(&new_ptcb->ptcb_list_node, new_ptcb);
     rlist_push_back(&newproc->ptcb_list, &new_ptcb->ptcb_list_node);
     newproc->thread_count++;
@@ -308,16 +308,6 @@ Pid_t sys_WaitChild(Pid_t cpid, int* status)
 void sys_Exit(int exitval)
 {
 
-  // PCB *curproc = CURPROC;  /* cache for efficiency */
-
-  // /* First, store the exit status */
-  // curproc->exitval = exitval;
-
-  // ThreadExit(exitval);
-
-  // /* Bye-bye cruel world */
-  // kernel_sleep(EXITED, SCHED_USER);
-
   PCB *curproc = CURPROC;  /* cache for efficiency */
 
   /* First, store the exit status */
@@ -331,24 +321,15 @@ void sys_Exit(int exitval)
 
     while(sys_WaitChild(NOPROC,NULL)!=NOPROC);
 
-<<<<<<< HEAD
-  } 
-
-  sys_ThreadExit(exitval);
-=======
   }
 
   sys_ThreadExit(exitval);
 
-  /* Bye-bye cruel world */
-  kernel_sleep(EXITED, SCHED_USER);
->>>>>>> e5a4b42d43cf3c7530e1acf5d6a5ac9ff2a1e2e0
 }
 
 
 
 Fid_t sys_OpenInfo()
 {
-	return NOFILE;
+  return NOFILE;
 }
-
