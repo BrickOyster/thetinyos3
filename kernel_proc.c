@@ -191,8 +191,8 @@ Pid_t sys_Exec(Task call, int argl, void* args)
     new_ptcb->task = newproc->main_task;
     new_ptcb->argl = newproc->argl;
     new_ptcb->args = newproc->args;
-    new_ptcb->exited = 0;
     new_ptcb->detached = 0;
+    new_ptcb->exited = 0;
     new_ptcb->exit_cv = COND_INIT;
     new_ptcb->refcount = 0;
     rlnode_init(&new_ptcb->ptcb_list_node, new_ptcb);
@@ -331,9 +331,18 @@ void sys_Exit(int exitval)
 
     while(sys_WaitChild(NOPROC,NULL)!=NOPROC);
 
+<<<<<<< HEAD
   } 
 
   sys_ThreadExit(exitval);
+=======
+  }
+
+  sys_ThreadExit(exitval);
+
+  /* Bye-bye cruel world */
+  kernel_sleep(EXITED, SCHED_USER);
+>>>>>>> e5a4b42d43cf3c7530e1acf5d6a5ac9ff2a1e2e0
 }
 
 
