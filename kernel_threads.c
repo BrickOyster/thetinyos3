@@ -32,7 +32,7 @@ void start_thread()
   void* args = cur_tcb->ptcb->args;
 
   exitval = call(argl,args);
-  ThreadExit(exitval);
+  sys_ThreadExit(exitval);
 }
 
 /** 
@@ -85,6 +85,7 @@ int sys_ThreadJoin(Tid_t tid, int* exitval)
     return -1;
 
   //thread no longer waits in queue but for joined thread
+  //removing current thread from sced list since it has to wait another thread to finish, no reason to waste sched's time for it
   rlist_remove(&cur_thread()->sched_node);
 
   //update refrensce counter

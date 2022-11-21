@@ -191,8 +191,8 @@ Pid_t sys_Exec(Task call, int argl, void* args)
     new_ptcb->task = newproc->main_task;
     new_ptcb->argl = newproc->argl;
     new_ptcb->args = newproc->args;
-    new_ptcb->exited = 0;
     new_ptcb->detached = 0;
+    new_ptcb->exited = 0;
     new_ptcb->exit_cv = COND_INIT;
     new_ptcb->refcount = 0;
     rlnode_init(&new_ptcb->ptcb_list_node, new_ptcb);
@@ -354,33 +354,7 @@ void sys_Exit(int exitval)
     kernel_broadcast(& curproc->parent->child_exit);
   }
 
-  assert(is_rlist_empty(& curproc->children_list));
-  assert(is_rlist_empty(& curproc->exited_list));
-
-
-  /* 
-    Do all the other cleanup we want here, close files etc. 
-  */
-
-  /* Release the args data */
-  if(curproc->args) {
-    free(curproc->args);
-    curproc->args = NULL;
-  }
-
-  /* Clean up FIDT */
-  for(int i=0;i<MAX_FILEID;i++) {
-    if(curproc->FIDT[i] != NULL) {
-      FCB_decref(curproc->FIDT[i]);
-      curproc->FIDT[i] = NULL;
-    }
-  }
-
-  /* Disconnect my main_thread */
-  curproc->main_thread = NULL;
-
-  /* Now, mark the process as exited. */
-  curproc->pstate = ZOMBIE;
+  sys_ThreadExit(exitval);
 
   /* Bye-bye cruel world */
   kernel_sleep(EXITED, SCHED_USER);
