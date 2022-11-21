@@ -2,8 +2,6 @@
 #include "tinyos.h"
 #include "kernel_sched.h"
 #include "kernel_proc.h"
-#include "kernel_cc.h"
-#include "kernel_streams.h"
 
 PTCB* acquire_PTCB(TCB* tcb)
 {
