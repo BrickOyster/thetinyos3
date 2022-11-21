@@ -91,6 +91,10 @@ enum SCHED_CAUSE {
 	SCHED_USER /**< @brief User-space code called yield */
 };
 
+
+#define MAX_YIELDS 300
+#define PRIORITY_QUEUES 5
+
 /**
   @brief The thread control block
 
@@ -102,6 +106,7 @@ typedef struct thread_control_block {
 	PCB* owner_pcb; /**< @brief This is null for a free TCB */
 
   PTCB* ptcb; /**< @brief Paired ptcb */
+  int priority; /**< @brief In order to make a Multi-Level Feedback Queue Scheduler */
 
 	cpu_context_t context; /**< @brief The thread context */
 	Thread_type type; /**< @brief The type of thread */

@@ -201,7 +201,7 @@ void sys_ThreadExit(int exitval)
       }
     }
 
-    if(cur_ptcb->refcount == 0){
+    if(cur_ptcb->refcount == 0 || cur_ptcb->detached == 1){
       rlist_remove(&cur_ptcb->ptcb_list_node);  // remove the PTCB from the PCB's list
       free(cur_ptcb);                          // free the PTCB
     }
