@@ -191,8 +191,8 @@ Pid_t sys_Exec(Task call, int argl, void* args)
     new_ptcb->task = newproc->main_task;
     new_ptcb->argl = newproc->argl;
     new_ptcb->args = newproc->args;
-    new_ptcb->exited = 0;
     new_ptcb->detached = 0;
+    new_ptcb->exited = 0;
     new_ptcb->exit_cv = COND_INIT;
     new_ptcb->refcount = 1;
     rlnode_init(&new_ptcb->ptcb_list_node, new_ptcb);
@@ -323,7 +323,7 @@ void sys_Exit(int exitval)
 
   }
 
-  ThreadExit(exitval);
+  sys_ThreadExit(exitval);
 
 }
 
