@@ -194,7 +194,7 @@ Pid_t sys_Exec(Task call, int argl, void* args)
     new_ptcb->detached = 0;
     new_ptcb->exited = 0;
     new_ptcb->exit_cv = COND_INIT;
-    new_ptcb->refcount = 1;
+    new_ptcb->refcount = 1; // change to 0
     rlnode_init(&new_ptcb->ptcb_list_node, new_ptcb);
     rlist_push_back(&newproc->ptcb_list, &new_ptcb->ptcb_list_node);
     newproc->thread_count++;

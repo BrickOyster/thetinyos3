@@ -443,6 +443,22 @@ void yield(enum SCHED_CAUSE cause)
 	current->last_cause = current->curr_cause;
 	current->curr_cause = cause;
 
+  yield_counter++;
+
+  if(yield_counter == MAX_YIELDS){
+  	rlnode* temporary_node = NULL;
+
+  	for(int i = PRIORITY_QUEUES-2; i >= 0; i--){
+  		while(!is_rlist_empty(&SCHED[i])){
+  			temporary_node = rlist_pop_front(&SCHED[i]);
+  			rlist_push_back(&SCHED[i+1], temporary_node);
+  			if(temporary_node->tcb->priority < PRIORITY_QUEUES-1)
+  				temporary_node->tcb->priority++;
+  		}
+  	}
+  	yield_counter = 0;
+  }
+
   switch (cause){
   	case SCHED_QUANTUM:
   	  if(current->priority > 0)
@@ -459,7 +475,7 @@ void yield(enum SCHED_CAUSE cause)
   	default:
   		break;
   }
-
+  
 	/* Wake up threads whose sleep timeout has expired */
 	sched_wakeup_expired_timeouts();
 
@@ -478,21 +494,7 @@ void yield(enum SCHED_CAUSE cause)
 		cpu_swap_context(&current->context, &next->context);
 	}
 
-  yield_counter++;
-
-  if(yield_counter == MAX_YIELDS){
-  	rlnode* temporary_node = NULL;
-
-  	for(int i = PRIORITY_QUEUES-2; i >= 0; i--){
-  		while(!is_rlist_empty(&SCHED[i])){
-  			temporary_node = rlist_pop_front(&SCHED[i]);
-  			rlist_push_back(&SCHED[i+1], temporary_node);
-  			if(temporary_node->tcb->priority < PRIORITY_QUEUES-1)
-  				temporary_node->tcb->priority++;
-  		}
-  	}
-  	yield_counter = 0;
-  }
+  
 
 	/* This is where we get after we are switched back on! A long time
 	   may have passed. Start a new timeslice...

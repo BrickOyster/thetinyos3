@@ -92,8 +92,8 @@ enum SCHED_CAUSE {
 };
 
 
-#define MAX_YIELDS 300
-#define PRIORITY_QUEUES 5
+#define MAX_YIELDS 150
+#define PRIORITY_QUEUES 50
 
 /**
   @brief The thread control block
