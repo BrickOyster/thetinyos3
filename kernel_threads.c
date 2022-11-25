@@ -83,11 +83,6 @@ int sys_ThreadJoin(Tid_t tid, int* exitval)
   if(threadref->detached == 1)
     return -1;
 
-  //thread no longer waits in queue but for joined thread
-  //removing current thread from sced list since it has to wait another thread to finish, no reason to waste sched's time for it
-  //rlist_remove(&cur_thread()->sched_node);
-  //said to be removed 
-/* _-_ */
   //update refrensce counter
   threadref->refcount++;
 
@@ -130,7 +125,7 @@ int sys_ThreadDetach(Tid_t tid)
     return -1;
   
   ptcb->detached = 1;
-  if(!ptcb->exited)/* _-_ */
+  if(!ptcb->exited)
     ptcb->refcount = 1;
   else
     ptcb->refcount = 0;
@@ -154,11 +149,6 @@ void sys_ThreadExit(int exitval)
 
   PCB* curproc = CURPROC;
   curproc->thread_count--;
-/* _-_ */
-  // if(cur_ptcb->refcount == 0){
-  //  rlist_remove(&cur_ptcb->ptcb_list_node);  // remove the PTCB from the PCB's list
-  //  free(cur_ptcb);                          // free the PTCB
-  // }
 
   // wake up all the threads waiting on this one 
   kernel_broadcast(&cur_ptcb->exit_cv);
@@ -208,6 +198,9 @@ void sys_ThreadExit(int exitval)
         curproc->FIDT[i] = NULL;
       }
     }
+
+    while(!is_rlist_empty(&curproc->ptcb_list))
+     free(rlist_pop_front(&curproc->ptcb_list)->ptcb); 
 
     /* Disconnect my main_thread */
     curproc->main_thread = NULL;
