@@ -273,7 +273,7 @@ static void sched_queue_add(TCB* tcb)
 	assert(tcb->priority < PRIORITY_QUEUES);
 	assert(tcb->priority >= 0);
 
-	/* Insert at the end of the scheduling list */
+	/* Insert at the end of the specified scheduling list */
 	rlist_push_back(&SCHED[tcb->priority], &tcb->sched_node);
 
 	/* Restart possibly halted cores */
@@ -443,22 +443,7 @@ void yield(enum SCHED_CAUSE cause)
 	current->last_cause = current->curr_cause;
 	current->curr_cause = cause;
 
-  yield_counter++;
-
-  if(yield_counter == MAX_YIELDS){
-  	rlnode* temporary_node = NULL;
-
-  	for(int i = PRIORITY_QUEUES-2; i >= 0; i--){
-  		while(!is_rlist_empty(&SCHED[i])){
-  			temporary_node = rlist_pop_front(&SCHED[i]);
-  			rlist_push_back(&SCHED[i+1], temporary_node);
-  			if(temporary_node->tcb->priority < PRIORITY_QUEUES-1)
-  				temporary_node->tcb->priority++;
-  		}
-  	}
-  	yield_counter = 0;
-  }
-
+  /* checking the yield cause and acting accordingly*/
   switch (cause){
   	case SCHED_QUANTUM:
   	  if(current->priority > 0)
@@ -478,6 +463,25 @@ void yield(enum SCHED_CAUSE cause)
   
 	/* Wake up threads whose sleep timeout has expired */
 	sched_wakeup_expired_timeouts();
+
+	/* increasing counter and checking if it is ready to boost*/
+  yield_counter++;
+  if(yield_counter == MAX_YIELDS){
+  	rlnode* temporary_node = NULL;
+
+    /* it starts at the second highest priority queue increasing
+     * its threads priorities by one, we do the same for all the rest queues */ 
+  	for(int i = PRIORITY_QUEUES-2; i >= 0; i--){
+  		while(!is_rlist_empty(&SCHED[i])){
+  			temporary_node = rlist_pop_front(&SCHED[i]);
+  			rlist_push_back(&SCHED[i+1], temporary_node);
+  			if(temporary_node->tcb->priority < PRIORITY_QUEUES-1)
+  				temporary_node->tcb->priority++;
+  		}
+  	}
+  	/* initializing the yield counter */
+  	yield_counter = 0;
+  }
 
 	/* Get next */
 	TCB* next = sched_queue_select(current);
