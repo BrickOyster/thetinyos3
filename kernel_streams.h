@@ -46,8 +46,6 @@ typedef struct file_control_block
   rlnode freelist_node;		/**< @brief Intrusive list node */
 } FCB;
 
-
-
 /** 
   @brief Initialization for files and streams.
 
@@ -127,6 +125,54 @@ void FCB_unreserve(size_t num, Fid_t *fid, FCB** fcb);
  */
 FCB* get_fcb(Fid_t fid);
 
+#define PIPE_BUFFER_SIZE 8*1024
+
+typedef struct pipe_control_block
+{
+	FCB *reader, *writer;
+	
+	CondVar has_space;							/**< @brief  For blocking writer if no space is available*/
+	CondVar has_data;								/**< @brief  For blocking reader until data are available*/
+
+	int w_position, r_position;			/**< @brief  Write/Read positioning buffer*/
+
+	char BUFFER[PIPE_BUFFER_SIZE];	/**< @brief  bounded (cyclic) byte buffer*/
+} pipe_cb;
+
+/** @brief 
+
+ */
+int sys_Pipe(pipe_t* pipe);
+
+/** @brief 
+
+ */
+int pipe_write(void* pipecb_t, const char *buf, unsigned int n);
+
+/** @brief 
+
+ */
+int pipe_read(void* pipecb_t, char *buf, unsigned int n);
+
+/** @brief 
+
+ */
+int pipe_writer_close(void* _pipecb);
+
+/** @brief 
+
+ */
+int pipe_reader_close(void* _pipecb);
+
+/** @brief 
+
+ */
+int no_op_write();
+
+/** @brief 
+
+ */
+int no_op_read();
 
 /** @} */
 
