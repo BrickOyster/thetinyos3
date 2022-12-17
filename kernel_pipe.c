@@ -19,53 +19,51 @@ static file_ops writer_file_ops = {
 /* Cyclic queue implementation*/
 
 // Is the queue full?
-int checkFull(int w_position, int r_position) 
+int checkFull(int *w_position, int *r_position) 
 {
-	if ((r_position == w_position + 1) || (r_position == 0 && w_position == PIPE_BUFFER_SIZE - 1)) return 1;
+	if ((*r_position == *w_position + 1) || (*r_position == 0 && (*w_position == (PIPE_BUFFER_SIZE - 1)))) return 1;
 	return 0;
 }
 
 // Is the Queue Empty?
-int checkEmpty(int r_position)
+int checkEmpty(int *r_position)
 {
-	if (r_position == -1) return 1;
+	if (*r_position == -1) return 1;
 	return 0;
 }
 
-int checkRemaining(int w_position, int r_position)
+int checkRemaining(int *w_position, int *r_position)
 {
-	if(r_position > w_position)
-		return (PIPE_BUFFER_SIZE - abs(r_position - w_position));
-	if(w_position > r_position)
-		return (abs(r_position - w_position));
-	return -1;
+	if(*r_position > *w_position)
+		return (*r_position - *w_position -1);
+	if(*w_position > *r_position)
+		return (PIPE_BUFFER_SIZE - (*w_position - *r_position +1));
+	return PIPE_BUFFER_SIZE;
 
 }
 
 // Element Adding
-void enQueue(char ele, char BUFFER[], int w_position, int r_position) {
-	if (!checkFull(r_position, w_position)) {
-		if (r_position == -1) r_position = 0;
-		w_position = (w_position + 1) % PIPE_BUFFER_SIZE;
-		BUFFER[w_position] = ele;
-		//printf("\n Pushed -> %d", ele);
+void enQueue(char ele, char BUFFER[], int *w_position, int *r_position) {
+	if (!checkFull(w_position, r_position)) {
+		if (*r_position == -1) *r_position = 0;
+		*w_position = (*w_position + 1) % PIPE_BUFFER_SIZE;
+		BUFFER[*w_position] = ele;
 	}
 }
 
 // Element removing
-char deQueue(char BUFFER[], int w_position, int r_position) {
+char deQueue(char BUFFER[], int *w_position, int *r_position) {
 	char ele;
 	if (!checkEmpty(r_position)) {
-		ele = BUFFER[r_position];
-		if (r_position == w_position) {
-			r_position = -1;
-			w_position = -1;
+		ele = BUFFER[*r_position];
+		if (*r_position == *w_position) {
+			*r_position = -1;
+			*w_position = -1;
 		}
 		// Reset Queue after all elements are removed
 		else {
-			r_position = (r_position + 1) % PIPE_BUFFER_SIZE;
+			*r_position = (*r_position + 1) % PIPE_BUFFER_SIZE;
 		}
-		//printf("\n Popped out -> %d \n", ele);
 		return (ele);
 	}
 	return '\0';
@@ -90,13 +88,12 @@ int sys_Pipe(pipe_t* pipe)
 	Fid_t fid_ts[2];
 	FCB *fcbs[2];
 	
-	if(FCB_reserve(2, fid_ts, fcbs))
+	if(!FCB_reserve(2, fid_ts, fcbs))
 		return -1;
 
 	pipe_cb* pipecb = init_Pipe();
 
 	pipe->read = fid_ts[0];
-    pipe->write = fid_ts[1];
 
 	/* Index of reader FCB*/
 	pipecb->reader = fcbs[0];
@@ -104,6 +101,8 @@ int sys_Pipe(pipe_t* pipe)
 	/* Setting up the reader side with its respective file_ops */
 	fcbs[0]->streamfunc = &reader_file_ops;
 	fcbs[0]->streamobj = pipecb;
+
+    pipe->write = fid_ts[1];
 
 	/* Index of writer FCB*/
 	pipecb->writer = fcbs[1];
@@ -122,9 +121,7 @@ int pipe_write(void* pipecb_t, const char *buf, unsigned int n)
 	if(pipecb == NULL || n < 1 || pipecb->writer == NULL || pipecb->reader == NULL)
 		return -1;
 
-	int x = 0;
-
-	while(checkFull(pipecb->w_position, pipecb->r_position)){
+	while(checkFull(&pipecb->w_position, &pipecb->r_position)){
     	kernel_wait(&pipecb->has_space, SCHED_PIPE);
 		
 		if(pipecb->reader == NULL)
@@ -134,18 +131,16 @@ int pipe_write(void* pipecb_t, const char *buf, unsigned int n)
 	/* We are ready to write*/
 
 	/* Check how many chars we can write*/
-	int remainingSpace = checkRemaining(pipecb->w_position, pipecb->r_position);
+	int remainingSpace = checkRemaining(&pipecb->w_position, &pipecb->r_position);
 	int elementsToWrite = (remainingSpace < n) ? remainingSpace : n;
 
 	/* Writing elements*/
-	for(int i = 0; i < elementsToWrite; i++){
-		enQueue(buf[i], pipecb->BUFFER, pipecb->w_position, pipecb->r_position);
-		x++;
-	}
-
+	for(int i = 0; i < elementsToWrite; i++)
+		enQueue(buf[i], pipecb->BUFFER, &pipecb->w_position, &pipecb->r_position);
+	
 	kernel_broadcast(&pipecb->has_data);
 
-	return x;
+	return elementsToWrite;
 }
 
 int pipe_read(void* pipecb_t, char *buf, unsigned int n)
@@ -155,25 +150,24 @@ int pipe_read(void* pipecb_t, char *buf, unsigned int n)
 	if(pipecb == NULL || n < 1 || pipecb->reader == NULL)
 		return -1;
 
-	if(pipecb->writer == NULL && checkRemaining(pipecb->w_position, pipecb->r_position) == PIPE_BUFFER_SIZE)
+	if(pipecb->writer == NULL && (checkRemaining(&pipecb->w_position, &pipecb->r_position) == PIPE_BUFFER_SIZE))
 		return 0;
 
-	while(checkEmpty(pipecb->r_position))
+	while(checkEmpty(&pipecb->r_position) && pipecb->writer!=NULL)
     	kernel_wait(&pipecb->has_data, SCHED_PIPE);
 
 	/* We are ready to read*/
 
-	if(pipecb->writer == NULL && checkRemaining(pipecb->w_position, pipecb->r_position) == PIPE_BUFFER_SIZE)
+	if(pipecb->writer == NULL && (checkRemaining(&pipecb->w_position, &pipecb->r_position) == PIPE_BUFFER_SIZE))
 		return 0;
 
 	/* Check how many chars we can write*/
-	int remainingData = PIPE_BUFFER_SIZE - checkRemaining(pipecb->w_position, pipecb->r_position);
+	int remainingData = PIPE_BUFFER_SIZE - checkRemaining(&pipecb->w_position, &pipecb->r_position);
 	int elementsToRead = (remainingData < n) ? remainingData : n;
 
 	/* Writing elements*/
-	for(int i = 0; i < elementsToRead; i++){
-		buf[i] = deQueue(pipecb->BUFFER, pipecb->w_position, pipecb->r_position);
-	}
+	for(int i = 0; i < elementsToRead; i++)
+		buf[i] = deQueue(pipecb->BUFFER, &pipecb->w_position, &pipecb->r_position);
 
 	kernel_broadcast(&pipecb->has_space);
 
