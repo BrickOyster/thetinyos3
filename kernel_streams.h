@@ -125,7 +125,7 @@ void FCB_unreserve(size_t num, Fid_t *fid, FCB** fcb);
  */
 FCB* get_fcb(Fid_t fid);
 
-#define PIPE_BUFFER_SIZE 8*1024
+#define PIPE_BUFFER_SIZE 8192
 
 typedef struct pipe_control_block
 {
