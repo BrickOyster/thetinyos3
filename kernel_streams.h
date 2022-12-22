@@ -125,6 +125,12 @@ void FCB_unreserve(size_t num, Fid_t *fid, FCB** fcb);
  */
 FCB* get_fcb(Fid_t fid);
 
+/*******************************************
+ *
+ * Pipes 
+ *
+ *******************************************/
+
 #define PIPE_BUFFER_SIZE 8192
 
 typedef struct pipe_control_block
@@ -173,6 +179,81 @@ int no_op_write();
 
  */
 int no_op_read();
+
+/*******************************************
+ *
+ * Sockets
+ *
+ *******************************************/
+
+/** @brief Socket types 
+
+  
+*/
+typedef enum {
+	SOCKET_LISTENER, /**< @brief  */
+	SOCKET_UNBOUND, /**< @brief  */
+	SOCKET_PEER /**< @brief  */
+} Socket_type;
+
+typedef struct listener_socket
+{
+	rlnode queue;
+	CondVar req_available;
+}listener_s;
+
+typedef struct unbound_socket
+{
+	rlnode unbound_socket;
+}unbound_s;
+
+typedef struct peer_socket
+{
+	struct peer_socket* peer;
+	pipe_cb* write;
+	pipe_cb read;
+}peer_s;
+
+typedef struct socket_control_block
+{
+	uint refcount;
+
+	FCB* fcb;
+
+	Socket_type type;
+	port_t port;
+
+	union{
+		listener_s listener;
+		unbound_s unbound;
+		peer_s peer;
+	};
+}socket_cb;
+
+/** @brief 
+
+ */
+Fid_t sys_Socket(port_t port);
+
+/** @brief 
+
+ */
+int sys_Listen(Fid_t sock);
+
+/** @brief 
+
+ */
+Fid_t sys_Accept(Fid_t lsock);
+
+/** @brief 
+
+ */
+int sys_Connect(Fid_t sock, port_t port, timeout_t timeout);
+
+/** @brief 
+
+ */
+int sys_ShutDown(Fid_t sock, shutdown_mode how);
 
 /** @} */
 
