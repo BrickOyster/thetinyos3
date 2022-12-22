@@ -106,20 +106,20 @@ int sys_ThreadJoin(Tid_t tid, int* exitval)
   threadref->refcount++;
 
   /* while the thread we joined has not finished then sleep*/
-  while(threadref->exited == 0){
+  while(threadref->exited == 0 && threadref->detached == 0)
     kernel_wait(&threadref->exit_cv, SCHED_USER);
-    
-    /* if the thread we joined becomes detached */
-    if(threadref->detached == 1)
-      return -1;
-  }
+  
+  /* update reference counter */
+  threadref->refcount--;
+
+  /* if the thread we joined becomes detached */
+  if(threadref->detached == 1)
+    return -1;
 
   /* at exit */
   if(exitval!=NULL)
     *exitval = threadref->exitval;
   
-  /* update reference counter */
-  threadref->refcount--;
 
   /* if refcount is 0 then free the thread since 
    * the thread has no more refrences and  has exited */
@@ -148,11 +148,7 @@ int sys_ThreadDetach(Tid_t tid)
 
   /* marking the ptcb as detached */
   ptcb->detached = 1;
-  if(!ptcb->exited)
-    ptcb->refcount = 1; // it has only itself since it has not exited
-  else
-    ptcb->refcount = 0; // it has been exited, no references exist
-  
+
   /* singals all the waiters */
   kernel_broadcast(&ptcb->exit_cv);
   
