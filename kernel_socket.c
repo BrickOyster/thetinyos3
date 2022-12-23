@@ -26,8 +26,8 @@ socket_cb* init_socket(port_t port)
 
 Fid_t sys_Socket(port_t port)
 {
-
-	if(port < 0 || port > MAX_PORT - 1)
+	// Ask about NOPORT MAX_PORT Cases
+	if(port < NOPORT || port > MAX_PORT)
 		return NOFILE;
 
 	socket_cb* socket = init_socket(port);
@@ -79,6 +79,9 @@ int socket_close(void* socketcb_t)
 			break;
 
 		case(SOCKET_LISTENER):
+			PORT_MAP[socket->port] = NULL;
+
+			kernel_broadcast(&socket->listener.req_available);
 			break;
 		
 		case(SOCKET_PEER):
@@ -90,7 +93,9 @@ int socket_close(void* socketcb_t)
 			if(socket->peer.read != NULL){
 				pipe_reader_close(socket->peer.read);
 				socket->peer.read = NULL;
-			}	
+			}
+			break;
+
 		default:
 			return -1;
 	}
@@ -126,18 +131,144 @@ int sys_Listen(Fid_t sock)
 
 Fid_t sys_Accept(Fid_t lsock)
 {
-	return NOFILE;
+	if(lsock < 0 || lsock > MAX_FILEID - 1 || get_fcb(lsock) == NULL)
+		return NOFILE;
+
+	socket_cb* listener = get_fcb(lsock)->streamobj;
+
+	if(listener == NULL || listener->type!=SOCKET_LISTENER)
+		return NOFILE;
+
+	listener->refcount++;
+
+	while(PORT_MAP[listener->port] != NULL && is_rlist_empty(&listener->listener.queue))
+		kernel_wait(&listener->listener.req_available, SCHED_PIPE);
+
+	if(PORT_MAP[listener->port] == NULL){
+		listener->refcount--;
+		return NOFILE;
+	}
+
+	if(listener == NULL || listener->type != SOCKET_LISTENER || PORT_MAP[listener->port] != listener){
+		listener->refcount--;
+		return NOFILE;
+	}
+
+	connection_req* request = (connection_req*) rlist_pop_front(&listener->listener.queue);
+
+	request->admitted = 1;
+
+	Fid_t peer = sys_Socket(listener->port);
+
+	if(peer == -1 || get_fcb(peer) == NULL){
+		listener->refcount--;
+		return NOFILE;
+	}
+
+	socket_cb* peer_socket = get_fcb(peer)->streamobj;
+	socket_cb* req_socket = request->peer;
+
+	peer_socket->type = SOCKET_PEER;
+	req_socket->type = SOCKET_PEER;
+
+	// Uneccery/Wrong ?
+	// req_socket->peer.peer = peer_socket;
+	// peer_socket->peer.peer = req_socket;
+
+	pipe_cb* pipe1 = init_Pipe();
+	pipe_cb* pipe2 = init_Pipe();
+
+	pipe1->writer = req_socket->fcb;
+	pipe2->reader = req_socket->fcb;
+	pipe2->writer = peer_socket->fcb;
+	pipe1->reader = peer_socket->fcb;
+
+	req_socket->peer.read = pipe2;
+	req_socket->peer.write = pipe1;
+	peer_socket->peer.read = pipe1;
+	peer_socket->peer.write = pipe2;
+
+	kernel_signal(&request->connected_cv);
+
+	listener->refcount--;
+
+	return peer;
 }
 
 
 int sys_Connect(Fid_t sock, port_t port, timeout_t timeout)
 {
-	return -1;
+	if(sock < 0 || sock > MAX_FILEID - 1 || get_fcb(sock) == NULL)
+		return NOFILE;
+
+	if(port <= NOPORT || port > MAX_PORT - 1)// </<= >/>= ???
+		return -1;
+
+	if(PORT_MAP[port] == NULL || PORT_MAP[port]->type != SOCKET_LISTENER)
+		return -1;
+
+	socket_cb* self_socket = get_fcb(sock)->streamobj;
+
+	if(self_socket == NULL || self_socket->type != SOCKET_UNBOUND)
+		return -1;
+
+	socket_cb* listener_socket = PORT_MAP[port];
+
+	self_socket->refcount++;
+
+	connection_req* request = (connection_req*) xmalloc(sizeof(connection_req));
+
+	request->admitted = 0;
+	request->peer = self_socket;
+
+	request->connected_cv = COND_INIT;
+
+	rlnode_init(&request->queue_node, request);
+
+	rlist_push_back(&listener_socket->listener.queue, &request->queue_node);
+	kernel_signal(&listener_socket->listener.req_available);
+
+	int timeOut = 1;
+	while(request->admitted == 0){
+		timeOut = kernel_timedwait(&request->connected_cv, SCHED_PIPE, timeout); // What does in return...?
+
+		if(timeOut == 0)
+			break;
+	}
+
+
+	self_socket->refcount--;
+	
+	return request->admitted == 0 ? -1 : 0;
 }
 
 
 int sys_ShutDown(Fid_t sock, shutdown_mode how)
-{
-	return -1;
+{	
+	socket_cb* socket = get_fcb(sock)->streamobj;
+
+	if(socket == NULL)
+		return -1;
+
+	switch(how){
+		case(SHUTDOWN_READ):
+			if(pipe_reader_close(socket->peer.read) == -1) return -1;
+			socket->peer.read = NULL;
+
+		case(SHUTDOWN_WRITE):
+			if(pipe_writer_close(socket->peer.write) == -1) return -1;
+			socket->peer.write = NULL;
+		
+		case(SHUTDOWN_BOTH):
+			if(pipe_reader_close(socket->peer.read) == -1) return -1;
+			socket->peer.read = NULL;
+			if(pipe_writer_close(socket->peer.write) == -1) return -1;
+			socket->peer.write = NULL;
+			
+		default:
+			return -1;
+	}
+
+	return 0;
 }
 

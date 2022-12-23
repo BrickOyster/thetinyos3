@@ -148,6 +148,11 @@ typedef struct pipe_control_block
 /** @brief 
 
  */
+pipe_cb* init_Pipe();
+
+/** @brief 
+
+ */
 int sys_Pipe(pipe_t* pipe);
 
 /** @brief 
@@ -229,6 +234,19 @@ typedef struct socket_control_block
 		peer_socket peer;
 	};
 }socket_cb;
+
+/** @brief
+ 
+ */
+typedef struct connection_request
+{
+	int admitted;
+
+	socket_cb* peer;
+
+	CondVar connected_cv;
+	rlnode queue_node;
+}connection_req;
 
 /** @brief 
 
