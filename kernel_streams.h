@@ -200,19 +200,19 @@ typedef struct listener_socket
 {
 	rlnode queue;
 	CondVar req_available;
-}listener_s;
+}listener_socket;
 
 typedef struct unbound_socket
 {
 	rlnode unbound_socket;
-}unbound_s;
+}unbound_socket;
 
 typedef struct peer_socket
 {
 	struct peer_socket* peer;
 	pipe_cb* write;
-	pipe_cb read;
-}peer_s;
+	pipe_cb* read;
+}peer_socket;
 
 typedef struct socket_control_block
 {
@@ -224,9 +224,9 @@ typedef struct socket_control_block
 	port_t port;
 
 	union{
-		listener_s listener;
-		unbound_s unbound;
-		peer_s peer;
+		listener_socket listener;
+		unbound_socket unbound;
+		peer_socket peer;
 	};
 }socket_cb;
 
@@ -254,6 +254,21 @@ int sys_Connect(Fid_t sock, port_t port, timeout_t timeout);
 
  */
 int sys_ShutDown(Fid_t sock, shutdown_mode how);
+
+/** @brief 
+
+ */
+int socket_read(void* socketcb_t, char *buf, unsigned int n);
+
+/** @brief 
+
+ */
+int socket_write(void* socketcb_t, const char *buf, unsigned int n);
+
+/** @brief 
+
+ */
+int socket_close(void* socketcb_t);
 
 /** @} */
 

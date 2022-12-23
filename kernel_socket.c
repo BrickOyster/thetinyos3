@@ -4,6 +4,8 @@
 #include "kernel_dev.h"
 #include <stdio.h>
 
+socket_cb* PORT_MAP[MAX_PORT];
+
 static file_ops socket_file_ops = {
 	.Read = socket_read,
 	.Write = socket_write,
@@ -46,26 +48,79 @@ Fid_t sys_Socket(port_t port)
 
 int socket_read(void* socketcb_t, char *buf, unsigned int n)
 {
-	int chars_read = 0;
+	socket_cb* socket_reader = (socket_cb*) socketcb_t;
 
-	return chars_read;
+	if(socket_reader == NULL || socket_reader->type != SOCKET_PEER)
+		return -1;
+
+	return pipe_write(socket_reader->peer.read, buf, n);
 }
 
 int socket_write(void* socketcb_t, const char *buf, unsigned int n)
 {
-	int chars_writen = 0;
+	socket_cb* socket_writer = (socket_cb*) socketcb_t;
 
-	return chars_writen;	
+	if(socket_writer == NULL || socket_writer->type != SOCKET_PEER)
+		return -1;
+
+	return pipe_write(socket_writer->peer.write, buf, n);
 }
 
 int socket_close(void* socketcb_t)
 {
+	socket_cb* socket = (socket_cb*) socketcb_t;
+
+	if(socket == NULL)
+		return -1;
+
+	switch(socket->type)
+	{
+		case(SOCKET_UNBOUND):
+			break;
+
+		case(SOCKET_LISTENER):
+			break;
+		
+		case(SOCKET_PEER):
+			if(socket->peer.write != NULL){
+				pipe_writer_close(socket->peer.write);
+				socket->peer.write = NULL;
+			}
+
+			if(socket->peer.read != NULL){
+				pipe_reader_close(socket->peer.read);
+				socket->peer.read = NULL;
+			}	
+		default:
+			return -1;
+	}
+
 	return 0;
 }
 
 int sys_Listen(Fid_t sock)
 {
-	return -1;
+	if(sock < 0 || sock > MAX_FILEID - 1 || get_fcb(sock) == NULL)
+		return NOFILE;
+
+	socket_cb* socket = get_fcb(sock)->streamobj;
+
+	if(socket == NULL || socket->port == NOPORT)
+		return -1;
+
+	if(PORT_MAP[socket->port] != NULL)
+		return -1;
+
+	if(socket->type != SOCKET_UNBOUND)
+		return -1;
+
+	PORT_MAP[socket->port] = socket;
+	socket->type = SOCKET_LISTENER;
+
+	rlnode_init(&socket->listener.queue, NULL);
+	socket->listener.req_available = COND_INIT;
+
+	return 0;
 }
 
 
