@@ -40,7 +40,7 @@
  */
 typedef struct file_control_block
 {
-  uint refcount;  			/**< @brief Reference counter. */
+  unsigned int refcount;  			/**< @brief Reference counter. */
   void* streamobj;			/**< @brief The stream object (e.g., a device) */
   file_ops* streamfunc;		/**< @brief The stream implementation methods */
   rlnode freelist_node;		/**< @brief Intrusive list node */

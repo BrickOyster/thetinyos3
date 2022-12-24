@@ -53,7 +53,7 @@ int socket_read(void* socketcb_t, char *buf, unsigned int n)
 	if(socket_reader == NULL || socket_reader->type != SOCKET_PEER)
 		return -1;
 
-	return pipe_write(socket_reader->peer.read, buf, n);
+	return pipe_read(socket_reader->peer.read, buf, n);
 }
 
 int socket_write(void* socketcb_t, const char *buf, unsigned int n)
@@ -85,20 +85,20 @@ int socket_close(void* socketcb_t)
 			break;
 		
 		case(SOCKET_PEER):
-			if(socket->peer.write != NULL){
-				pipe_writer_close(socket->peer.write);
-				socket->peer.write = NULL;
-			}
+			pipe_writer_close(socket->peer.write);
+			socket->peer.write = NULL;
 
-			if(socket->peer.read != NULL){
-				pipe_reader_close(socket->peer.read);
-				socket->peer.read = NULL;
-			}
+			pipe_reader_close(socket->peer.read);
+			socket->peer.read = NULL;
 			break;
 
 		default:
 			return -1;
 	}
+
+	if(socket->refcount == 0){
+		free(socket);
+	}	
 
 	return 0;
 }
@@ -108,7 +108,7 @@ int sys_Listen(Fid_t sock)
 	if(sock < 0 || sock > MAX_FILEID - 1 || get_fcb(sock) == NULL)
 		return NOFILE;
 
-	socket_cb* socket = get_fcb(sock)->streamobj;
+	socket_cb* socket = (socket_cb*) get_fcb(sock)->streamobj;
 
 	if(socket == NULL || socket->port == NOPORT)
 		return -1;
@@ -134,14 +134,14 @@ Fid_t sys_Accept(Fid_t lsock)
 	if(lsock < 0 || lsock > MAX_FILEID - 1 || get_fcb(lsock) == NULL)
 		return NOFILE;
 
-	socket_cb* listener = get_fcb(lsock)->streamobj;
+	socket_cb* listener = (socket_cb*) get_fcb(lsock)->streamobj;
 
 	if(listener == NULL || listener->type!=SOCKET_LISTENER)
 		return NOFILE;
 
 	listener->refcount++;
 
-	while(PORT_MAP[listener->port] != NULL && is_rlist_empty(&listener->listener.queue))
+	while(is_rlist_empty(&listener->listener.queue) && PORT_MAP[listener->port] != NULL)
 		kernel_wait(&listener->listener.req_available, SCHED_PIPE);
 
 	if(PORT_MAP[listener->port] == NULL){
@@ -154,26 +154,22 @@ Fid_t sys_Accept(Fid_t lsock)
 		return NOFILE;
 	}
 
-	connection_req* request = (connection_req*) rlist_pop_front(&listener->listener.queue);
-
-	request->admitted = 1;
+	connection_req* request = (connection_req*) rlist_pop_front(&listener->listener.queue)->obj;
 
 	Fid_t peer = sys_Socket(listener->port);
 
-	if(peer == -1 || get_fcb(peer) == NULL){
+	if(peer == NOFILE || get_fcb(peer) == NULL){
 		listener->refcount--;
 		return NOFILE;
 	}
 
-	socket_cb* peer_socket = get_fcb(peer)->streamobj;
+	request->admitted = 1;
+
+	socket_cb* peer_socket = (socket_cb*) get_fcb(peer)->streamobj;
 	socket_cb* req_socket = request->peer;
 
 	peer_socket->type = SOCKET_PEER;
 	req_socket->type = SOCKET_PEER;
-
-	// Uneccery/Wrong ?
-	// req_socket->peer.peer = peer_socket;
-	// peer_socket->peer.peer = req_socket;
 
 	pipe_cb* pipe1 = init_Pipe();
 	pipe_cb* pipe2 = init_Pipe();
@@ -207,9 +203,13 @@ int sys_Connect(Fid_t sock, port_t port, timeout_t timeout)
 	if(PORT_MAP[port] == NULL || PORT_MAP[port]->type != SOCKET_LISTENER)
 		return -1;
 
-	socket_cb* self_socket = get_fcb(sock)->streamobj;
+	FCB* self_fcb = get_fcb(sock);
+	if(self_fcb == NULL)
+		return -1;
 
-	if(self_socket == NULL || self_socket->type != SOCKET_UNBOUND)
+	socket_cb* self_socket = self_fcb->streamobj;
+
+	if(self_socket->type != SOCKET_UNBOUND)
 		return -1;
 
 	socket_cb* listener_socket = PORT_MAP[port];
@@ -228,10 +228,9 @@ int sys_Connect(Fid_t sock, port_t port, timeout_t timeout)
 	rlist_push_back(&listener_socket->listener.queue, &request->queue_node);
 	kernel_signal(&listener_socket->listener.req_available);
 
-	int timeOut = 1;
+	int timeOut;
 	while(request->admitted == 0){
 		timeOut = kernel_timedwait(&request->connected_cv, SCHED_PIPE, timeout); // What does in return...?
-
 		if(timeOut == 0)
 			break;
 	}
@@ -239,32 +238,40 @@ int sys_Connect(Fid_t sock, port_t port, timeout_t timeout)
 
 	self_socket->refcount--;
 	
-	return request->admitted == 0 ? -1 : 0;
+	return (request->admitted == 1) ? 0 : -1;
 }
 
 
 int sys_ShutDown(Fid_t sock, shutdown_mode how)
 {	
-	socket_cb* socket = get_fcb(sock)->streamobj;
+
+	if(sock < 0 || sock > MAX_FILEID-1 || get_fcb(sock)==NULL){
+		return -1;
+	}
+
+	socket_cb* socket = (socket_cb*) get_fcb(sock)->streamobj;
 
 	if(socket == NULL)
 		return -1;
 
 	switch(how){
 		case(SHUTDOWN_READ):
-			if(pipe_reader_close(socket->peer.read) == -1) return -1;
+			pipe_reader_close(socket->peer.read);
 			socket->peer.read = NULL;
+			break;
 
 		case(SHUTDOWN_WRITE):
-			if(pipe_writer_close(socket->peer.write) == -1) return -1;
+			pipe_writer_close(socket->peer.write);
 			socket->peer.write = NULL;
-		
+			break; 
+
 		case(SHUTDOWN_BOTH):
-			if(pipe_reader_close(socket->peer.read) == -1) return -1;
+			pipe_reader_close(socket->peer.read);
 			socket->peer.read = NULL;
-			if(pipe_writer_close(socket->peer.write) == -1) return -1;
+			pipe_writer_close(socket->peer.write);
 			socket->peer.write = NULL;
-			
+			break;
+
 		default:
 			return -1;
 	}

@@ -121,12 +121,11 @@ int pipe_write(void* pipecb_t, const char *buf, unsigned int n)
 	if(pipecb == NULL || n < 1 || pipecb->writer == NULL || pipecb->reader == NULL)
 		return -1;
 
-	while(checkFull(&pipecb->w_position, &pipecb->r_position)){
+	while(checkFull(&pipecb->w_position, &pipecb->r_position) && pipecb->reader != NULL)
     	kernel_wait(&pipecb->has_space, SCHED_PIPE);
-		
-		if(pipecb->reader == NULL)
-			return -1;
-	}
+
+	if(pipecb->reader == NULL)
+		return -1;
 
 	/* We are ready to write*/
 
@@ -158,7 +157,7 @@ int pipe_read(void* pipecb_t, char *buf, unsigned int n)
 
 	/* We are ready to read*/
 
-	if(pipecb->writer == NULL && (checkRemaining(&pipecb->w_position, &pipecb->r_position) == PIPE_BUFFER_SIZE))
+	if(pipecb->writer == NULL && (checkEmpty(&pipecb->r_position)))
 		return 0;
 
 	/* Check how many chars we can write*/
