@@ -327,9 +327,83 @@ void sys_Exit(int exitval)
 
 }
 
-
+static file_ops procinfo_ops = {  
+    .Read = procinfo_read,
+    .Write = procinfo_write,
+    .Close = procinfo_close
+};
 
 Fid_t sys_OpenInfo()
 {
-  return NOFILE;
+  Fid_t fid;
+  FCB* fcb;
+
+ 	if (! FCB_reserve(1, &fid, &fcb))
+    return NOFILE;
+
+  procinfo_cb* new_info = xmalloc(sizeof(procinfo_cb));
+  
+  if (new_info == NULL){
+    FCB_unreserve(1, &fid, &fcb);
+		return NOFILE;
+	}
+
+ 	new_info->cursor = 1; //initiallisation of the cursor to 1 so that we begin from the root PCB
+  fcb->streamobj = new_info;
+  fcb->streamfunc = &procinfo_ops;  
+
+	return fid;
+}
+
+
+
+int procinfo_write(){ //since we don't need the write function we will have it just return -1
+	return -1;      
+}
+
+int procinfo_read(void* pcb, char *buf, unsigned int n) //starts reading info from the root process and then continues reading other pcbs
+{
+
+   //in case the pcb doesn't exist returns an error
+ 	if (pcb == NULL)
+    return -1;
+
+ 	procinfo_cb* info_cb = (procinfo_cb*) pcb;
+
+  //if the cursor can't be used in PT return an error
+  if (info_cb->cursor < 1 || info_cb->cursor > MAX_PROC) 			
+  	return -1;
+  
+  if (info_cb->cursor == MAX_PROC)
+      return 0;
+  
+ 	while(PT[info_cb->cursor].pstate == FREE){
+    info_cb->cursor++;			// increase cursor to read the next process
+		if (info_cb->cursor == MAX_PROC)
+		  return 0;
+  }
+
+  info_cb->info.pid = info_cb->cursor;
+  info_cb->info.ppid = get_pid((PT[info_cb->cursor]).parent);
+  info_cb->info.alive = PT[info_cb->cursor].pstate;
+  info_cb->info.thread_count = PT[info_cb->cursor].thread_count;
+  info_cb->info.main_task = PT[info_cb->cursor].main_task;
+  info_cb->info.argl = PT[info_cb->cursor].argl;
+
+  int argl;						//if the length of the info is greater than the maximum argument size the new integer argl 
+  
+  argl = (info_cb->info.argl > PROCINFO_MAX_ARGS_SIZE) ? PROCINFO_MAX_ARGS_SIZE : info_cb->info.argl;
+  
+	memcpy(info_cb->info.args,(char *)PT[info_cb->cursor].args, sizeof(char)* argl );    // used to pass the process name 
+	memcpy(buf, (char*)&info_cb->info, sizeof(procinfo)); 				// pass info to the buffer
+  
+	info_cb->cursor++; //move to the next PCB
+	return 1;
+}
+
+int procinfo_close(void* procinfo_cb)
+{
+  if (procinfo_cb != NULL)
+  	free(procinfo_cb);
+  return 0;
 }

@@ -97,6 +97,21 @@ PCB* get_pcb(Pid_t pid);
 */
 Pid_t get_pid(PCB* pcb);
 
+
+/**
+  @brief 
+ */
+typedef struct procinfo_cb {
+	procinfo info; 	/***< @brief struct that contains the variables that could descirbe a PCB */
+	Pid_t cursor;		/***< @brief cursor used to traverse the PT */ 
+} procinfo_cb;
+
+
+int procinfo_write();
+
+int procinfo_read(void* pcb, char *buf, unsigned int n);
+
+int procinfo_close(void* procinfo_cb);
 /** @} */
 
 #endif
