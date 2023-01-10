@@ -106,11 +106,19 @@ typedef struct procinfo_cb {
 	Pid_t cursor;		/***< @brief cursor used to traverse the PT */ 
 } procinfo_cb;
 
-
+/**
+  @brief 
+ */
 int procinfo_write();
 
+/**
+  @brief 
+ */
 int procinfo_read(void* pcb, char *buf, unsigned int n);
 
+/**
+  @brief 
+ */
 int procinfo_close(void* procinfo_cb);
 /** @} */
 

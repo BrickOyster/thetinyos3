@@ -194,7 +194,7 @@ Pid_t sys_Exec(Task call, int argl, void* args)
     new_ptcb->detached = 0;
     new_ptcb->exited = 0;
     new_ptcb->exit_cv = COND_INIT;
-    new_ptcb->refcount = 1; // change to 0
+    new_ptcb->refcount = 0;
     rlnode_init(&new_ptcb->ptcb_list_node, new_ptcb);
     rlist_push_back(&newproc->ptcb_list, &new_ptcb->ptcb_list_node);
     newproc->thread_count++;
@@ -338,7 +338,7 @@ Fid_t sys_OpenInfo()
   Fid_t fid;
   FCB* fcb;
 
- 	if (! FCB_reserve(1, &fid, &fcb))
+ 	if (!FCB_reserve(1, &fid, &fcb))
     return NOFILE;
 
   procinfo_cb* new_info = xmalloc(sizeof(procinfo_cb));
@@ -355,20 +355,18 @@ Fid_t sys_OpenInfo()
 	return fid;
 }
 
-
-
 int procinfo_write(){ //since we don't need the write function we will have it just return -1
 	return -1;      
 }
 
-int procinfo_read(void* pcb, char *buf, unsigned int n) //starts reading info from the root process and then continues reading other pcbs
+int procinfo_read(void* icb, char *buf, unsigned int n) //starts reading info from the root process and then continues reading other pcbs
 {
 
    //in case the pcb doesn't exist returns an error
- 	if (pcb == NULL)
+ 	if (icb == NULL)
     return -1;
 
- 	procinfo_cb* info_cb = (procinfo_cb*) pcb;
+ 	procinfo_cb* info_cb = (procinfo_cb*) icb;
 
   //if the cursor can't be used in PT return an error
   if (info_cb->cursor < 1 || info_cb->cursor > MAX_PROC) 			
@@ -385,7 +383,7 @@ int procinfo_read(void* pcb, char *buf, unsigned int n) //starts reading info fr
 
   info_cb->info.pid = info_cb->cursor;
   info_cb->info.ppid = get_pid((PT[info_cb->cursor]).parent);
-  info_cb->info.alive = PT[info_cb->cursor].pstate;
+  info_cb->info.alive = PT[info_cb->cursor].pstate == ALIVE;
   info_cb->info.thread_count = PT[info_cb->cursor].thread_count;
   info_cb->info.main_task = PT[info_cb->cursor].main_task;
   info_cb->info.argl = PT[info_cb->cursor].argl;

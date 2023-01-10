@@ -197,7 +197,7 @@ int sys_Connect(Fid_t sock, port_t port, timeout_t timeout)
 	if(sock < 0 || sock > MAX_FILEID - 1 || get_fcb(sock) == NULL)
 		return NOFILE;
 
-	if(port <= NOPORT || port > MAX_PORT - 1)// </<= >/>= ???
+	if(port <= NOPORT || port > MAX_PORT - 1)
 		return -1;
 
 	if(PORT_MAP[port] == NULL || PORT_MAP[port]->type != SOCKET_LISTENER)
@@ -230,7 +230,7 @@ int sys_Connect(Fid_t sock, port_t port, timeout_t timeout)
 
 	int timeOut;
 	while(request->admitted == 0){
-		timeOut = kernel_timedwait(&request->connected_cv, SCHED_PIPE, timeout); // What does in return...?
+		timeOut = kernel_timedwait(&request->connected_cv, SCHED_PIPE, timeout);
 		if(timeOut == 0)
 			break;
 	}

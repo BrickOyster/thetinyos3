@@ -1,4 +1,3 @@
-
 #include "tinyos.h"
 #include "kernel_sched.h"
 #include "kernel_proc.h"
@@ -15,7 +14,7 @@ PTCB* acquire_PTCB(TCB* tcb)
   ptcb->exited = 0;
   ptcb->detached = 0;
   ptcb->exit_cv = COND_INIT;
-  ptcb->refcount = 1; //start from 1
+  ptcb->refcount = 0;
 
   /* at last we create an rlnode for the new ptcb and adding it 
    * to the current process' ptcb list*/
@@ -167,7 +166,6 @@ void sys_ThreadExit(int exitval)
 
   /* marking ptcb as exited and updating reference counter */
   cur_ptcb->exited = 1;
-  cur_ptcb->refcount--;
 
   /* decreasing current process' threads by 1 */
   PCB* curproc = CURPROC;
