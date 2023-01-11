@@ -32,6 +32,7 @@ int checkEmpty(int *r_position)
 	return 0;
 }
 
+/*checks if there are any remaining positions left*/
 int checkRemaining(int *w_position, int *r_position)
 {
 	if(*r_position > *w_position)
@@ -71,9 +72,14 @@ char deQueue(char BUFFER[], int *w_position, int *r_position) {
 
 /* Pipes Implementation*/
 
+
+
 pipe_cb* init_Pipe(){
+	/* allocating the needed space to create a new pipe control block*/
 	pipe_cb* pipe = (pipe_cb*) xmalloc(sizeof(pipe_cb));
 
+   /*initializing the fields of the pipe_cb, firstly the condition variable
+    *and then the read and write position are set to -1 */
 	pipe->has_space = COND_INIT;
 	pipe->has_data = COND_INIT;
 	
@@ -88,6 +94,7 @@ int sys_Pipe(pipe_t* pipe)
 	Fid_t fid_ts[2];
 	FCB *fcbs[2];
 	
+	/*checking if we can reserve 2 FCBS*/
 	if(!FCB_reserve(2, fid_ts, fcbs))
 		return -1;
 
@@ -118,9 +125,12 @@ int pipe_write(void* pipecb_t, const char *buf, unsigned int n)
 {	
 	pipe_cb* pipecb = (pipe_cb*) pipecb_t;
 
+	/* checking if the pipe_cb is null, if the numbe of bytes we wanna write is below 1,
+	* if the writer_end is null or if the reader_end is null, if any of them are true return -1 */
 	if(pipecb == NULL || n < 1 || pipecb->writer == NULL || pipecb->reader == NULL)
 		return -1;
 
+	/* while the buffer is full and the reader is not null (closed) then wait */
 	while(checkFull(&pipecb->w_position, &pipecb->r_position) && pipecb->reader != NULL)
     	kernel_wait(&pipecb->has_space, SCHED_PIPE);
 
@@ -137,6 +147,7 @@ int pipe_write(void* pipecb_t, const char *buf, unsigned int n)
 	for(int i = 0; i < elementsToWrite; i++)
 		enQueue(buf[i], pipecb->BUFFER, &pipecb->w_position, &pipecb->r_position);
 	
+	/* singals all the waiters */
 	kernel_broadcast(&pipecb->has_data);
 
 	return elementsToWrite;
@@ -146,12 +157,17 @@ int pipe_read(void* pipecb_t, char *buf, unsigned int n)
 {	
 	pipe_cb* pipecb = (pipe_cb*) pipecb_t;
 
+	/* if pipe_cb is null or if the number we want to read is below 1 or the reader_end
+	 * is null (closed) then return -1 */
 	if(pipecb == NULL || n < 1 || pipecb->reader == NULL)
 		return -1;
 
+	/* if writer_end is null (closed) so there will be not written any new characters to read and
+	 * the remaining postions are equal to PIPE_BUFFER_SIZE then it is EOF (End Of File) and we return 0*/
 	if(pipecb->writer == NULL && (checkRemaining(&pipecb->w_position, &pipecb->r_position) == PIPE_BUFFER_SIZE))
 		return 0;
 
+	/* while the buffer is empty and the writer is not null (closed) then wait */
 	while(checkEmpty(&pipecb->r_position) && pipecb->writer!=NULL)
     	kernel_wait(&pipecb->has_data, SCHED_PIPE);
 
@@ -167,7 +183,8 @@ int pipe_read(void* pipecb_t, char *buf, unsigned int n)
 	/* Writing elements*/
 	for(int i = 0; i < elementsToRead; i++)
 		buf[i] = deQueue(pipecb->BUFFER, &pipecb->w_position, &pipecb->r_position);
-
+	
+	/* singals all the waiters */
 	kernel_broadcast(&pipecb->has_space);
 
 	return elementsToRead;
@@ -177,11 +194,14 @@ int pipe_writer_close(void* pipecb_t)
 {
 	pipe_cb* pipecb = (pipe_cb*) pipecb_t;
 
+	/* if pipecb is null or writer is already null then return -1*/
 	if(pipecb == NULL || pipecb->writer == NULL)
 		return -1;
 
+	/* closing the writer, making it null*/
 	pipecb->writer = NULL;
 
+	/* signals all the waiters*/
 	kernel_broadcast(&pipecb->has_data);
 
 	return 0;
@@ -191,11 +211,14 @@ int pipe_reader_close(void* pipecb_t)
 {
 	pipe_cb* pipecb = (pipe_cb*) pipecb_t;
 
+	/* if pipecb is null or reader is already null then return -1*/
 	if(pipecb == NULL || pipecb->reader == NULL)
 		return -1;
 
+	/* closing the reader, making it null*/
 	pipecb->reader = NULL;
 
+	/* signals all the waiters*/
 	kernel_broadcast(&pipecb->has_space);
 
 	return 0;
