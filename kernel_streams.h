@@ -133,56 +133,119 @@ FCB* get_fcb(Fid_t fid);
 
 #define PIPE_BUFFER_SIZE 8192
 
+/** @brief The pipe control block.
+
+	A stucture containing all attributes of a pipe
+ */
 typedef struct pipe_control_block
 {
 	FCB *reader, *writer;
 	
-	CondVar has_space;							/**< @brief  For blocking writer if no space is available*/
-	CondVar has_data;								/**< @brief  For blocking reader until data are available*/
+	CondVar has_space;						/**< @brief condition variable for pipe has space*/
+	CondVar has_data;						/**< @brief condition variable for pipe has data*/
 
-	int w_position, r_position;			/**< @brief  Write/Read positioning buffer*/
+	int w_position, r_position;				/**< @brief  Write/Read positioning buffer*/
 
-	char BUFFER[PIPE_BUFFER_SIZE];	/**< @brief  bounded (cyclic) byte buffer*/
+	char BUFFER[PIPE_BUFFER_SIZE];			/**< @brief  bounded (cyclic) byte buffer*/
 } pipe_cb;
 
-/** @brief 
+/**
+  @brief Creates a Pipe.
 
- */
+  This function will return the pipe_cb of the created pipe 
+  inisializing some values
+
+  @returns the pipe.
+*/
 pipe_cb* init_Pipe();
 
-/** @brief 
+/**
+  @brief Sets up a pipe.
 
- */
+  This function will create the pipe 
+  It is given 2 fids and will return 0 if successful or -1 if it fails
+
+  @param pipe the pair of file ids. 
+  @returns 0 or -1
+*/
 int sys_Pipe(pipe_t* pipe);
 
-/** @brief 
+/**
+  @brief Writes something with a given pipe.
 
- */
+  This function tryies to writes a specified amount of characters @c n 
+  from a given buffer @c buf using @c pipecb_t to it's @c BUFFER
+   
+  @param pipecb_t pair of file ids 
+  @param buf the buffer containing the characters
+  @param n size of string to write
+  @returns the amount of characters writen by the pipe or -1 on error.
+  Possible reasons for error are:
+		- pipe doesn't exist.
+        - writer already closed.
+*/
 int pipe_write(void* pipecb_t, const char *buf, unsigned int n);
 
-/** @brief 
+/**
+  @brief Read something with a given pipe.
 
- */
+  This function tryies to read a specified amount of characters @c n 
+  to a given buffer @c buf using @c pipecb_t from it's @c BUFFER
+
+  @param pipecb_t pair of file ids 
+  @param buf the buffer to put the read characters in
+  @param n size of requested string
+  @returns the amount of characters read by the pipe or -1 on error.
+  Possible reasons for error are:
+		- pipe doesn't exist.
+        - writer already closed.
+*/
 int pipe_read(void* pipecb_t, char *buf, unsigned int n);
 
-/** @brief 
+/**
+  @brief Close writer of a pipe.
 
- */
+  This function closes the writer of the pipe given to it
+  and will return 0 if successful
+
+  @param _pipecb the pair of file ids
+  @returns 1 on success or -1 on error
+  Possible reasons for error are:
+		- pipe doesn't exist.
+        - writer already closed.
+*/
 int pipe_writer_close(void* _pipecb);
 
-/** @brief 
+/**
+  @brief Close reader of a pipe.
 
- */
+  This function closes the reader of the pipe given to it
+  and will return 0 if successful
+
+  @param _pipecb the pair of file ids
+  @returns 1 on success or -1 on error
+  Possible reasons for error are:
+		- pipe doesn't exist.
+        - reader already closed.
+*/
 int pipe_reader_close(void* _pipecb);
 
-/** @brief 
+/**
+  @brief For blocking read
 
- */
+  This function is used when a file_ops isn't allowed to write
+ 
+  @returns value -1
+*/
 int no_op_write();
 
-/** @brief 
+/**
+  @brief For blocking read
 
- */
+  This function is used when a file_ops isn't allowed to read
+ 
+  @returns value -1
+*/
 int no_op_read();
 
 /*******************************************
@@ -191,99 +254,188 @@ int no_op_read();
  *
  *******************************************/
 
-/** @brief Socket types 
+/** @brief The socket types.
 
-  
-*/
+	LISTENER = 0 @see listener_socket, UNBOUND = 1 @see unbound_socket, PEER = 2 @see peer_socket.
+ */
 typedef enum {
-	SOCKET_LISTENER, /**< @brief  */
-	SOCKET_UNBOUND, /**< @brief  */
-	SOCKET_PEER /**< @brief  */
+	SOCKET_LISTENER, /**< @brief a socket that waits for a connection request */
+	SOCKET_UNBOUND, /**< @brief a unitialised socket */
+	SOCKET_PEER /**< @brief a connected socket */
 } Socket_type;
 
+/** @brief Listener Socket
+    
+	Extra structure of listener socket
+ */
 typedef struct listener_socket
 {
-	rlnode queue;
-	CondVar req_available;
+	rlnode queue; /**< @brief queue of requests for the listener */
+	CondVar req_available; 
 }listener_socket;
 
+/** @brief Unbound Socket
+    
+	Extra structure of unbound socket
+ */
 typedef struct unbound_socket
 {
-	rlnode unbound_socket;
+	rlnode unbound_socket; /**< @brief Dummy variable used for symetry */
 }unbound_socket;
 
+/** @brief Peer Socket
+    
+	Extra structure of peer socket
+ */
 typedef struct peer_socket
 {
-	struct peer_socket* peer;
-	pipe_cb* write;
-	pipe_cb* read;
+	struct peer_socket* peer; 			/**< @brief the peer's socket pair */
+	pipe_cb* write; 					/**< @brief the peer's socket writer pipe */
+	pipe_cb* read; 						/**< @brief the peer's socket reader pipe */
 }peer_socket;
 
+/** @brief the Socket Control Block
+    
+	Structure containing all information of a socket
+ */
 typedef struct socket_control_block
 {
-	uint refcount;
+	uint refcount; 						/**< @brief amount of sockets waiting this socket for something */
 
-	FCB* fcb;
+	FCB* fcb; 							/**< @brief a file control block used for reading/writing */
 
-	Socket_type type;
-	port_t port;
+	Socket_type type;					/**< @brief the type of the socket */
+	port_t port; 						/**< @brief port the socket is connected to */
 
 	union{
 		listener_socket listener;
 		unbound_socket unbound;
 		peer_socket peer;
-	};
+	};									/**< the extra structures that a socket can have depending of type */
 }socket_cb;
 
-/** @brief
- 
+/** @brief A connection request
+    
+	Structure containing all information of a connection request
  */
 typedef struct connection_request
 {
-	int admitted;
+	int admitted; 						/**< @brief 0 if pending 1 if completed */
 
-	socket_cb* peer;
+	socket_cb* peer;					/**< @brief the socket that made the request */
 
-	CondVar connected_cv;
-	rlnode queue_node;
+	CondVar connected_cv;				/**< @brief condition variable for connected socket */
+	rlnode queue_node;					/**< @brief node for listener queue */
 }connection_req;
 
-/** @brief 
+/** 
+  @brief Creates a socket assigned to the given port 
+  
+  This function returns the id of the socket created
 
+  @param port the port the socket will be assigned to
+  @returns the id of the socket
  */
 Fid_t sys_Socket(port_t port);
 
-/** @brief 
+/** 
+  @brief Make a listener socket
 
+  creates a listener socket and ist queue
+
+  @param sock id of the socket @c fid_t
+  @returns 0 if successful or -1 if error
+  Possible reasons for error are:
+		- invalid socket id.
+        - given socket doesn't exist.
+		- socket port invalid
+		- port already occupied
+		- socket already initilized
  */
 int sys_Listen(Fid_t sock);
 
-/** @brief 
+/** 
+  @brief Accept a connection
 
+  process request and accept/denies connection
+  if it accepts it makes all neccesery connections
+
+  @param lsock id of listener socket @c fid_t
+  @returns the new socket that establishes the connection
+  Possible reasons for error are:
+		- invalid listener socket id @c fid_t.
+        - given socket doesn't exist.
+		- socket isn't of listener type
+		- socket disconnected from port
+		- socket changed while running
+		- socket to connect couldn't be created
  */
 Fid_t sys_Accept(Fid_t lsock);
 
-/** @brief 
+/** 
+  @brief Accept a connection
 
+  requests for a connection to be established
+  within a given time
+
+  @param sock id of socket @c fid_t
+  @param port port of listener socket to handle the request
+  @param timeout the limit of time for the request to be established
+  @returns 0 if successful or -1 on error
+  Possible reasons for error are:
+		- invalid socket id @c fid_t.
+		- invalid port
+		- port isn't assigned
+		- socket on given port not of listener type
+		- socket @c sock already initialized
+		- timeout time passed and request not handles yet
  */
 int sys_Connect(Fid_t sock, port_t port, timeout_t timeout);
 
-/** @brief 
+/** 
+  @brief ShutDown a socket
 
+  Closes a socket partially or entirelly
+
+  @param sock id of socket @c fid_t
+  @param how mode of shutdown (SHUTDOWN_[WRITE READ BOTH])
+  @returns 0 if successful or -1 on error
+  Possible reasons for error are:
+		- invalid socket id @c fid_t.
+		- socket doesn't exist
+		- Invalid shutdown mode
  */
 int sys_ShutDown(Fid_t sock, shutdown_mode how);
 
-/** @brief 
+/** 
+  @brief Read with a socket
 
+  
+
+  @param 
+  @returns number of characters read
+  Possible reasons for error are:
+		- 
  */
 int socket_read(void* socketcb_t, char *buf, unsigned int n);
 
-/** @brief 
+/** 
+  @brief Write with a socket
 
+  Closes a socket partially or entirelly
+
+  @param 
+  @returns number of characters writen
+  Possible reasons for error are:
+		- 
  */
 int socket_write(void* socketcb_t, const char *buf, unsigned int n);
 
-/** @brief 
+/** 
+  @brief 
+  
+  s
+
 
  */
 int socket_close(void* socketcb_t);

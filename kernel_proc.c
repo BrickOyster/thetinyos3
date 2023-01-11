@@ -338,12 +338,14 @@ Fid_t sys_OpenInfo()
   Fid_t fid;
   FCB* fcb;
 
+  // Reserve FCB
  	if (!FCB_reserve(1, &fid, &fcb))
     return NOFILE;
 
+  // Assign space for info
   procinfo_cb* new_info = xmalloc(sizeof(procinfo_cb));
   
-  if (new_info == NULL){
+  if (new_info == NULL){ //if xmalloc failled unreserve and return NOFILE
     FCB_unreserve(1, &fid, &fcb);
 		return NOFILE;
 	}
@@ -355,11 +357,13 @@ Fid_t sys_OpenInfo()
 	return fid;
 }
 
-int procinfo_write(){ //since we don't need the write function we will have it just return -1
+//since we don't need the write function we will have it just return -1
+int procinfo_write(){ 
 	return -1;      
 }
 
-int procinfo_read(void* icb, char *buf, unsigned int n) //starts reading info from the root process and then continues reading other pcbs
+//starts reading info from the root process and then continues reading other pcbs
+int procinfo_read(void* icb, char *buf, unsigned int n) 
 {
 
    //in case the pcb doesn't exist returns an error
@@ -372,15 +376,17 @@ int procinfo_read(void* icb, char *buf, unsigned int n) //starts reading info fr
   if (info_cb->cursor < 1 || info_cb->cursor > MAX_PROC) 			
   	return -1;
   
+  // Cursor at end of process list
   if (info_cb->cursor == MAX_PROC)
       return 0;
   
  	while(PT[info_cb->cursor].pstate == FREE){
-    info_cb->cursor++;			// increase cursor to read the next process
+    info_cb->cursor++;			// If process unavailable increase cursor to read the next process
 		if (info_cb->cursor == MAX_PROC)
-		  return 0;
+		  return 0; // Cursor reached emd of process list
   }
 
+  // Assigning values of info to send to openInfo
   info_cb->info.pid = info_cb->cursor;
   info_cb->info.ppid = get_pid((PT[info_cb->cursor]).parent);
   info_cb->info.alive = PT[info_cb->cursor].pstate == ALIVE;
@@ -388,10 +394,9 @@ int procinfo_read(void* icb, char *buf, unsigned int n) //starts reading info fr
   info_cb->info.main_task = PT[info_cb->cursor].main_task;
   info_cb->info.argl = PT[info_cb->cursor].argl;
 
-  int argl;						//if the length of the info is greater than the maximum argument size the new integer argl 
-  
-  argl = (info_cb->info.argl > PROCINFO_MAX_ARGS_SIZE) ? PROCINFO_MAX_ARGS_SIZE : info_cb->info.argl;
-  
+	//If the length of the info is greater than the maximum argument size limit argl to max value 
+  int argl= (info_cb->info.argl > PROCINFO_MAX_ARGS_SIZE) ? PROCINFO_MAX_ARGS_SIZE : info_cb->info.argl;
+
 	memcpy(info_cb->info.args,(char *)PT[info_cb->cursor].args, sizeof(char)* argl );    // used to pass the process name 
 	memcpy(buf, (char*)&info_cb->info, sizeof(procinfo)); 				// pass info to the buffer
   
@@ -399,9 +404,10 @@ int procinfo_read(void* icb, char *buf, unsigned int n) //starts reading info fr
 	return 1;
 }
 
+// Close info cb
 int procinfo_close(void* procinfo_cb)
 {
-  if (procinfo_cb != NULL)
+  if (procinfo_cb != NULL) // If not already free the info cb
   	free(procinfo_cb);
   return 0;
 }

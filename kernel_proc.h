@@ -99,25 +99,46 @@ Pid_t get_pid(PCB* pcb);
 
 
 /**
-  @brief 
+  @brief Process Info Control Block
+
+  This structure holds necessery info to print with sysinfo
+  @see OpenInfo
  */
-typedef struct procinfo_cb {
-	procinfo info; 	/***< @brief struct that contains the variables that could descirbe a PCB */
-	Pid_t cursor;		/***< @brief cursor used to traverse the PT */ 
+typedef struct process_info_control_block {
+	procinfo info; 	/***< @brief Struct that contains the variables that could descirbe a PCB */
+	Pid_t cursor;		/***< @brief Cursor used to traverse the PT */ 
 } procinfo_cb;
 
 /**
-  @brief 
+  @brief Write with process info control block
+
+  This function is useless
+
+  @returns value -1
  */
 int procinfo_write();
 
 /**
-  @brief 
+  @brief Read with process control block
+
+  This function uses @c icb to find a process in list @c PT
+  and reads all its vital info to send to openInfo
+  Info is writen to specified buffer @c buf
+
+  @param icb the info control block
+  @param buf the buffer to place the result in
+  @param n the size of the requested string
+  @returns 1 if succesful, 0 if nothing is read or -1 on error
+  Possible reasons for error are:
+		- Specified icb doesn't exist.
+    - cursor in given icb is outside of PT list limits
  */
-int procinfo_read(void* pcb, char *buf, unsigned int n);
+int procinfo_read(void* icb, char *buf, unsigned int n);
 
 /**
-  @brief 
+  @brief Crose the info control block
+
+  @returns value 0
  */
 int procinfo_close(void* procinfo_cb);
 /** @} */
