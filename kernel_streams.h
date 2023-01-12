@@ -407,36 +407,49 @@ int sys_Connect(Fid_t sock, port_t port, timeout_t timeout);
  */
 int sys_ShutDown(Fid_t sock, shutdown_mode how);
 
-/** 
+/**
   @brief Read with a socket
 
+  Read from a specified buffer @c buf
+  and writes it to the socket's reader pipe buffer
   
-
-  @param 
-  @returns number of characters read
+  @param socketcb_t socket control block (should be peer type)
+  @param buf the buffer to copy from
+  @param n total characters to copy
+  @return the number of characters writen or -1 on error
   Possible reasons for error are:
-		- 
+    - socket's reader closed
+    - socket not of type peer
  */
 int socket_read(void* socketcb_t, char *buf, unsigned int n);
 
-/** 
+/**
   @brief Write with a socket
-
-  Closes a socket partially or entirelly
-
-  @param 
-  @returns number of characters writen
+  
+  Write to a specified buffer @c buf 
+  from the buffer of the reader pipe of the socket
+  
+  @param socketcb_t socket control block (should be peer type)
+  @param buf the user's buffer
+  @param n total characters to read
+  @return the number of characters read or -1 on error
   Possible reasons for error are:
-		- 
+    - socket's writer closed
+    - socket not of type peer
  */
 int socket_write(void* socketcb_t, const char *buf, unsigned int n);
 
-/** 
-  @brief 
+/**
+  @brief Close a socket
   
-  s
-
-
+  This function will close a soxket
+  freeing it and all its contents if successful
+  
+  @param _pipecb the socket to close
+  @return 	0 on success, -1 on error
+  Possible reasons for error are:
+		- socket doesn't exist
+		- socket type invalid (technichaly not possible)
  */
 int socket_close(void* socketcb_t);
 

@@ -11,6 +11,9 @@ In its current incarnation, tinyos supports a multicore preemptive scheduler, se
 unix like process model. It does not support (yet) memory management, block devices, or network devices. These
 extensions are planned for the future.
 
+ReadMe Edit:
+In our project we implemented in the already existing system threads, Multi Level Feedback queue, pipes, sockets, systemInfo.  
+
 ## Quick start
 
 After downloading the code, just build it.
